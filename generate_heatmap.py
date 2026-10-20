@@ -1,11 +1,11 @@
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import urllib.request
 import json
+import os
 
-def generate_geographic_map():
-    print("Start genereren geografische IZA-heatmap van Nederland...")
+def generate_local_geographic_map():
+    print("Start genereren lokale geografische IZA-heatmap van Nederland...")
     
     # 1. Laad de crosswalk (gemeenten naar IZA-regio's)
     try:
@@ -20,27 +20,24 @@ def generate_geographic_map():
     np.random.seed(42)
     unique_regions = df_crosswalk['ZK_Naam'].unique()
     region_scores = {regio: np.random.uniform(25.0, 90.0) for regio in unique_regions}
-    
-    # Koppel de regioscore aan elke gemeente via de crosswalk
     df_crosswalk['Risico_Score'] = df_crosswalk['ZK_Naam'].map(region_scores)
 
-    # 3. Haal de betrouwbare GeoJSON van Nederland op (met 'name' als eigenschap voor gemeenten)
-    geojson_url = "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/the-netherlands.geojson"
-    
-    print("Downloaden geografische kaartdata...")
-    try:
-        with urllib.request.urlopen(geojson_url, timeout=15) as response:
-            geojson_data = json.loads(response.read().decode('utf-8'))
-    except Exception as e:
-        print(f"Fout bij ophalen GeoJSON: {e}")
+    # 3. Laad het lokale GeoJSON-bestand
+    geojson_path = "netherlands.geojson"
+    if not os.path.exists(geojson_path):
+        print(f"Fout: Kan lokaal bestand '{geojson_path}' niet vinden in de repository!")
         return
+        
+    print("Inlezen lokaal GeoJSON-bestand...")
+    with open(geojson_path, 'r', encoding='utf-8') as f:
+        geojson_data = json.load(f)
 
     # 4. Maak de interactieve landkaart met Plotly Choropleth
     fig = px.choropleth(
         df_crosswalk,
         geojson=geojson_data,
         locations='Gemeente',
-        featureidkey="properties.name", # Gecorrigeerd naar de juiste property key in dit bestand
+        featureidkey="properties.name", # Komt overeen met de 'name' eigenschap in het GeoJSON-bestand
         color='Risico_Score',
         color_continuous_scale="Reds",
         range_color=(25, 90),
@@ -65,4 +62,5 @@ def generate_geographic_map():
     print(f"Geografische landkaart succesvol opgeslagen als '{output_file}'!")
 
 if __name__ == "__main__":
-    generate_geographic_map()
+    generate_local_geographic_map()
+    
