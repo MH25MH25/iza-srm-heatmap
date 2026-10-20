@@ -1,13 +1,13 @@
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import urllib.request
 import json
-import requests
 
-def generate_srm_heatmap():
-    print("Stap 4: Genereren van de IZA-regio heatmap...")
+def generate_geographic_heatmap():
+    print("Genereren van geografische IZA-heatmap van Nederland...")
     
-    # 1. Laad de berekende regionale scores (of bereken ze direct uit de crosswalk)
+    # 1. Laad de gemeente-naar-regio crosswalk
     try:
         df_crosswalk = pd.read_csv('table__86247NED.CSV', quotechar='"', header=None, skiprows=2)
         df_crosswalk.columns = ['Gemeente', 'ZK_Code', 'ZK_Naam']
@@ -16,48 +16,50 @@ def generate_srm_heatmap():
         print(f"Fout bij inlezen crosswalk: {e}")
         return
 
-    # Genereer testdata voor de 38 IZA-regio's
+    # 2. Genereer realistische testdata per gemeente (of direct per IZA-regio)
     np.random.seed(42)
-    df_open_data = pd.DataFrame({
-        'Gemeente': df_crosswalk['Gemeente'],
-        'Systeemdruk_Score': np.random.uniform(25.0, 90.0, size=len(df_crosswalk))
-    })
-
-    df_merged = pd.merge(df_crosswalk, df_open_data, on='Gemeente', how='inner')
-    df_iza = df_merged.groupby(['ZK_Code', 'ZK_Naam']).agg(
+    df_crosswalk['Systeemdruk_Score'] = np.random.uniform(25.0, 90.0, size=len(df_crosswalk))
+    
+    # Aggregeer naar IZA-regio niveau voor de tabel/statistieken
+    df_iza = df_crosswalk.groupby(['ZK_Code', 'ZK_Naam']).agg(
         Systeemdruk_Score=('Systeemdruk_Score', 'mean'),
         Aantal_Gemeenten=('Gemeente', 'count')
     ).reset_index()
 
-    # 2. Haal een openbaar GeoJSON-bestand op voor de Nederlandse gemeenten/regio's
-    # (We gebruiken hier een openbare CBS/gemeente grenzen bron voor de visualisatie)
+    # 3. Download openbaar GeoJSON-bestand van Nederlandse gemeenten
     geojson_url = "https://raw.githubusercontent.com/opengeodata/agiv-vlaanderen-en-nederland/master/nederland_gemeenten.geojson"
+    print("Downloaden van geografische kaartdata (GeoJSON)...")
     
-    print("Bezig met aanmaken van de Plotly choropleth kaart...")
-    
-    # Voor nu bouwen we een duidelijke staafdiagram/heatmap weergave of kaartstructuur
-    fig = px.bar(
-        df_iza.sort_values(by='Systeemdruk_Score', ascending=True),
-        x='Systeemdruk_Score',
-        y='ZK_Naam',
-        orientation='h',
-        title='SRM Stelselbeeld - Systeemdruk per IZA-regio',
-        labels={'Systeemdruk_Score': 'Gemiddelde Systeemdruk Index (0-100)', 'ZK_Naam': 'IZA-regio'},
+    with urllib.request.urlopen(geojson_url) as url:
+        geojson_data = json.loads(url.read().decode())
+
+    # 4. Bouw een interactieve Choropleth kaart van Nederland op gemeenteniveau (gekleurd op IZA-regio / score)
+    # We mappen de gemeenten uit de GeoJSON aan onze crosswalk data
+    fig = px.choropleth(
+        df_crosswalk,
+        geojson=geojson_data,
+        locations='Gemeente',
+        featureidkey="properties.gemeentenaam", # Afhankelijk van de eigenschap in de GeoJSON, of we gebruiken een alternative mapping
         color='Systeemdruk_Score',
-        color_continuous_scale='Reds'
-    )
-    
-    fig.update_layout(
-        template='plotly_white',
-        xaxis_title="Risicoscore",
-        yaxis_title="Regio",
-        height=900
+        color_continuous_scale="Reds",
+        range_color=(25, 90),
+        scope="europe",
+        center={"lat": 52.1326, "lon": 5.2913},
+        title="SRM Geografisch Stelselbeeld - Systeemdruk per Regio"
     )
 
-    # 3. Sla op als interactief HTML-bestand
+    # Optimaliseer de kaartweergave voor Nederland
+    fig.update_geos(fitbounds="locations", visible=False)
+    fig.update_layout(
+        margin={"r":0,"t":40,"l":0,"b":0},
+        template='plotly_white',
+        height=800
+    )
+
+    # 5. Sla op als HTML-bestand
     output_file = "srm_heatmap_dashboard.html"
     fig.write_html(output_file)
-    print(f"Dashboard succesvol opgeslagen als '{output_file}'!")
+    print(f"Geografische kaart succesvol opgeslagen als '{output_file}'!")
 
 if __name__ == "__main__":
-    generate_srm_heatmap()
+    generate_geographic_heatmap()
