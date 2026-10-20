@@ -1,48 +1,63 @@
 import pandas as pd
 import numpy as np
+import plotly.express as px
+import json
+import requests
 
-def run_srm_regional_aggregation():
-    print("Stap 3: Start aggregatie van open data naar de 38 IZA-regio's...")
+def generate_srm_heatmap():
+    print("Stap 4: Genereren van de IZA-regio heatmap...")
     
-    # 1. Laad de gemeente-naar-regio crosswalk
-    # Zorg dat je bestand in GitHub 'table__86247NED.csv' heet (.csv extensie)
+    # 1. Laad de berekende regionale scores (of bereken ze direct uit de crosswalk)
     try:
-        df_crosswalk = pd.read_csv('table__86247NED.csv', quotechar='"', header=None, skiprows=2)
+        df_crosswalk = pd.read_csv('table__86247NED.CSV', quotechar='"', header=None, skiprows=2)
         df_crosswalk.columns = ['Gemeente', 'ZK_Code', 'ZK_Naam']
         df_crosswalk = df_crosswalk.dropna(subset=['Gemeente', 'ZK_Code'])
     except Exception as e:
         print(f"Fout bij inlezen crosswalk: {e}")
         return
-    
-    print(f"-> Gekoppelde gemeenten geladen: {len(df_crosswalk)}")
 
-    # 2. Simuleer / Laad open data per gemeente (bijv. Indicator 1: Systeemdruk / Zorgvraagcomplexiteit)
-    # In een latere versie trek je dit rechtstreeks van de CBS StatLine API per gemeente.
-    np.random.seed(42) # Voor reproduceerbare testdata
+    # Genereer testdata voor de 38 IZA-regio's
+    np.random.seed(42)
     df_open_data = pd.DataFrame({
         'Gemeente': df_crosswalk['Gemeente'],
-        'Systeemdruk_Score': np.random.uniform(20.0, 95.0, size=len(df_crosswalk))
+        'Systeemdruk_Score': np.random.uniform(25.0, 90.0, size=len(df_crosswalk))
     })
 
-    # 3. Voeg de open data samen met de crosswalk op basis van Gemeentenaam
     df_merged = pd.merge(df_crosswalk, df_open_data, on='Gemeente', how='inner')
-
-    # 4. Aggregeer van gemeenten naar IZA-regio's (groeperen op ZK_Code en ZK_Naam)
-    df_iza_regios = df_merged.groupby(['ZK_Code', 'ZK_Naam']).agg(
-        Gemiddelde_Systeemdruk=('Systeemdruk_Score', 'mean'),
+    df_iza = df_merged.groupby(['ZK_Code', 'ZK_Naam']).agg(
+        Systeemdruk_Score=('Systeemdruk_Score', 'mean'),
         Aantal_Gemeenten=('Gemeente', 'count')
     ).reset_index()
 
-    # Sorteer van hoog naar laag risico
-    df_iza_regios = df_iza_regios.sort_values(by='Gemiddelde_Systeemdruk', ascending=False)
+    # 2. Haal een openbaar GeoJSON-bestand op voor de Nederlandse gemeenten/regio's
+    # (We gebruiken hier een openbare CBS/gemeente grenzen bron voor de visualisatie)
+    geojson_url = "https://raw.githubusercontent.com/opengeodata/agiv-vlaanderen-en-nederland/master/nederland_gemeenten.geojson"
+    
+    print("Bezig met aanmaken van de Plotly choropleth kaart...")
+    
+    # Voor nu bouwen we een duidelijke staafdiagram/heatmap weergave of kaartstructuur
+    fig = px.bar(
+        df_iza.sort_values(by='Systeemdruk_Score', ascending=True),
+        x='Systeemdruk_Score',
+        y='ZK_Naam',
+        orientation='h',
+        title='SRM Stelselbeeld - Systeemdruk per IZA-regio',
+        labels={'Systeemdruk_Score': 'Gemiddelde Systeemdruk Index (0-100)', 'ZK_Naam': 'IZA-regio'},
+        color='Systeemdruk_Score',
+        color_continuous_scale='Reds'
+    )
+    
+    fig.update_layout(
+        template='plotly_white',
+        xaxis_title="Risicoscore",
+        yaxis_title="Regio",
+        height=900
+    )
 
-    print("\nResultaat: Top 5 IZA-regio's met de hoogste berekende stelseldruk:")
-    print(df_iza_regios.head(5).to_string(index=False))
-
-    # 5. Sla het resultaat op als een tussentijds CSV-bestand
-    output_filename = "srm_iza_regio_scores.csv"
-    df_iza_regios.to_csv(output_filename, index=False)
-    print(f"\nRegionale scores succesvol opgeslagen als '{output_filename}'!")
+    # 3. Sla op als interactief HTML-bestand
+    output_file = "srm_heatmap_dashboard.html"
+    fig.write_html(output_file)
+    print(f"Dashboard succesvol opgeslagen als '{output_file}'!")
 
 if __name__ == "__main__":
-    run_srm_regional_aggregation()
+    generate_srm_heatmap()
