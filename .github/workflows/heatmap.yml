@@ -1,0 +1,32 @@
+name: Genereer SRM Heatmap Dashboard
+
+on:
+  schedule:
+    - cron: '0 5 * * 1' # Elke maandag om 05:00 uur automatisch
+  workflow_dispatch: # Maakt een handmatige 'Run workflow' knop aan in GitHub
+
+jobs:
+  build-dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Installeer dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Voer heatmap script uit
+        run: |
+          python generate_heatmap.py
+
+      - name: Bewaar HTML Dashboard als Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: srm-heatmap-dashboard
+          path: srm_heatmap_dashboard.html
