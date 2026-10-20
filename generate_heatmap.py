@@ -4,8 +4,8 @@ import plotly.express as px
 import json
 import os
 
-def generate_local_geographic_map():
-    print("Start genereren lokale geografische IZA-heatmap van Nederland...")
+def generate_local_geojson_map():
+    print("Start genereren IZA-heatmap op basis van lokaal GeoJSON-bestand...")
     
     # 1. Laad de crosswalk (gemeenten naar IZA-regio's)
     try:
@@ -22,14 +22,14 @@ def generate_local_geographic_map():
     region_scores = {regio: np.random.uniform(25.0, 90.0) for regio in unique_regions}
     df_crosswalk['Risico_Score'] = df_crosswalk['ZK_Naam'].map(region_scores)
 
-    # 3. Laad het lokale GeoJSON-bestand
-    geojson_path = "netherlands.geojson"
-    if not os.path.exists(geojson_path):
-        print(f"Fout: Kan lokaal bestand '{geojson_path}' niet vinden in de repository!")
+    # 3. Laad het lokale GeoJSON-bestand dat zojuist is geüpload
+    geojson_filename = "the-netherlands.geojson"
+    if not os.path.exists(geojson_filename):
+        print(f"Fout: Kan '{geojson_filename}' niet vinden in de repository!")
         return
         
-    print("Inlezen lokaal GeoJSON-bestand...")
-    with open(geojson_path, 'r', encoding='utf-8') as f:
+    print(f"Inlezen lokaal bestand '{geojson_filename}'...")
+    with open(geojson_filename, 'r', encoding='utf-8') as f:
         geojson_data = json.load(f)
 
     # 4. Maak de interactieve landkaart met Plotly Choropleth
@@ -37,7 +37,7 @@ def generate_local_geographic_map():
         df_crosswalk,
         geojson=geojson_data,
         locations='Gemeente',
-        featureidkey="properties.name", # Komt overeen met de 'name' eigenschap in het GeoJSON-bestand
+        featureidkey="properties.name", # Komt exact overeen met 'properties.name' in je GeoJSON
         color='Risico_Score',
         color_continuous_scale="Reds",
         range_color=(25, 90),
@@ -62,5 +62,4 @@ def generate_local_geographic_map():
     print(f"Geografische landkaart succesvol opgeslagen als '{output_file}'!")
 
 if __name__ == "__main__":
-    generate_local_geographic_map()
-    
+    generate_local_geojson_map()
